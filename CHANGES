@@ -1,0 +1,35 @@
+Changes since release 1.0
+=========================
+
+Release 1.3 - Jun 4, 2013
+-------------------------
+* This version can process iRefIndex releases 10 and 11.
+* The mappings.txt file from iRefIndex is no longer optional. This does mean
+  that the processing time will significantly increase but it also guarantees
+  that all possible identifiers will be processed.
+* A new algorithm for assigning Gene IDs is used.
+
+Release 1.2 - Jul 24, 2012
+--------------------------
+* Updated Phase 1 so that all unspecified or obsolete for detection method,
+  interaction type and experimental role are now set to proper PSI-MI terms
+  (these are sometimes guessed).
+* Added an option for the main ppiTrim script to set the minimum complex size.
+  The default is 4.
+* Updated the download URL for psi-mi.obo.
+* Changed handling complexes in Phase 2 and Phase 3. In Phase 2, all binary
+  interactions that specify bait/prey experimental roles are spoke-deflated
+  (depending on minimum and maximum complex size). These interactions are now
+  never deflated using template matching. On the other hand, interactions
+  without bait/prey specified are only template matched. Furthermore, at Phase
+  3, we allow conflicts between complexes. Two complexes are in conflict if
+  they could be based on the same experiment but must be different records due
+  to incompatibilities. These could be differences in detection method term, or
+  if the bait is the same, because sets of preys are different.
+
+Release 1.1 - Mar 26, 2012
+--------------------------
+* Updated the parser so that it can handle complexes from iRefIndex 9.0.
+* Added a script to dump ppiTrim results into an sqlite database
+  (experimental).
+* Small bug fixes.

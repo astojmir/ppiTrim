@@ -1,0 +1,15 @@
+Metadata-Version: 1.1
+Name: ppiTrim
+Version: 1.3
+Summary: A script for processing iRefIndex dataset of protein-protein interactions
+Home-page: http://www.ncbi.nlm.nih.gov/CBBresearch/qmbp/
+Author: Aleksandar Stojmirovic and Yi-Kuo Yu
+Author-email: stojmira@ncbi.nlm.nih.gov
+License: Public Domain
+Description: UNKNOWN
+Platform: POSIX
+Classifier: Development Status :: 5 - Production/Stable 
+Classifier: Intended Audience :: Science/Research
+Classifier: Operating System :: POSIX
+Classifier: Programming Language :: Python
+Classifier: Topic :: Scientific/Engineering :: Bio-Informatics

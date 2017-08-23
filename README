@@ -1,0 +1,98 @@
+ppiTrim - README
+================
+
+Summary
+-------
+
+ppiTrim is a Python script for constructing a consolidated reference database
+of protein-protein interactions. It processes iRefIndex dataset in PSI-MI TAB
+2.6 format (54 columns) and outputs a consolidated dataset. The output format
+is also PSI-MI TAB 2.6, but with only 36 standard columns. Processing consists
+of three steps:
+
+1. mapping all interactants to NCBI Gene IDs and removing all undesired
+   interactions,
+2. contracting expanded complexes, and
+3. consolidating all redundant interactions and detecting conflicts between
+   annotations by different source databases.
+
+The output interactions are classified as either undirected, directed or
+complexes, where complexes denote more than two proteins interacting at the
+same time.
+
+
+Requirements
+------------
+
+ppiTrim has been developed using Python 2.6 on Linux machines. It only relies
+on the Python standard library and hence should be usable on other
+platforms. We have tested it on MacOSX and Windows, as well as under Python 2.5.
+
+
+Download and Installation
+-------------------------
+
+The source code for the ppiTrim is available from the NCBI FTP site
+(ftp://ftp.ncbi.nih.gov/pub/qmbpmn/ppiTrim/src) as a tar.gz archive. Subsequent
+releases will be placed in the same directory.
+
+After downloading the source code, extract it to a chosen directory and enter the
+``ppiTrim-<version>`` directory. To install all necessary files run::
+
+    python setup.py install
+
+The installation script will install the Python module ppiTrim and the script
+ppiTrim to appropriate locations on your system. Please consult the `Installing
+Python Modules <http://docs.python.org/install/index.html/>`_  guide from the
+Python documentation.
+
+
+Running ppiTrim
+---------------
+
+ppiTrim is a command-line script. Assuming the installation process places the
+script somewhere on your path, run::
+
+    ppiTrim [OPTIONS] <irefindex_file> <download_dir> <output_dir>
+
+Please run::
+
+    ppiTrim -h
+
+to obtain help on possible options and arguments. The files downloaded from the
+Internet will be placed in ``<download_dir>`` while the intermediate output
+files as well as the final consolidated dataset will be placed in
+``<output_dir>``. The final dataset filename will be::
+
+    <irefindex_file>.ppiTrim.txt
+
+All intermediate files will also have ``<irefindex_file>`` as prefix. The
+statistics for each phase are located at the end of that phases' log file. For
+example, the statistics for phase 2 are at the bottom of the file::
+
+    <irefindex_file>.phase2.log
+
+
+Potential Issues
+----------------
+
+ppiTrim downloads all its required supplementary data from the Internet. Hence
+a failed download or failure of upstream services at the NCBI or EBI site
+will result in a crash. The solution for this is to delete the files from the
+downloads directory and restart ppiTrim. Generally, ppiTrim will not repeat the
+steps it finished. Note that many times it is sufficient to just delete the
+last few downloaded files rather than all of them.
+
+
+License
+-------
+
+All ppiTrim code was at the NCBI and is released into Public Domain. Please see
+the LICENSE file. The full credits are in the CREDITS file.
+
+
+Contact
+-------
+
+Please write to stojmira-at-ncbi.nlm.nih.gov for any bug reports, suggestions or
+requests related to ppiTrim.

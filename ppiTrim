@@ -1,0 +1,239 @@
+#! /usr/bin/env python
+#
+# ===========================================================================
+#
+#                            PUBLIC DOMAIN NOTICE
+#               National Center for Biotechnology Information
+#
+#  This software/database is a "United States Government Work" under the
+#  terms of the United States Copyright Act.  It was written as part of
+#  the author's official duties as a United States Government employee and
+#  thus cannot be copyrighted.  This software/database is freely available
+#  to the public for use. The National Library of Medicine and the U.S.
+#  Government have not placed any restriction on its use or reproduction.
+#
+#  Although all reasonable efforts have been taken to ensure the accuracy
+#  and reliability of the software and data, the NLM and the U.S.
+#  Government do not and cannot warrant the performance or results that
+#  may be obtained by using this software or data. The NLM and the U.S.
+#  Government disclaim all warranties, express or implied, including
+#  warranties of performance, merchantability or fitness for any particular
+#  purpose.
+#
+#  Please cite the author in any work or product based on this material.
+#
+# ===========================================================================
+#
+# Code author:  Aleksandar Stojmirovic
+#
+"""
+Process and trim an interaction dataset (starting from iRefIndex)
+"""
+
+import sys
+import getopt
+import os
+from ppiTrim.biogrid_ptm_codes import biogrid_ptm_codes
+from ppiTrim.biogrid_ptm_codes import download_and_extract_biogrid
+from ppiTrim.download import download_file
+from ppiTrim.idmapping import map_protein_ids_to_gene_ids
+from ppiTrim.process_ppi1 import process_ppi1
+from ppiTrim.process_ppi2 import process_ppi2
+from ppiTrim.process_ppi3 import process_ppi3
+
+_HELP = \
+"""
+Process and trim an interaction dataset (starting from iRefIndex) - master
+script
+
+SYNOPSIS:
+
+    %s [OPTIONS] irefindex_file mappings_file download_dir output_dir
+    %s -h|--help
+
+ARGUMENTS:
+
+    irefindex_file              iRefIndex file in PSI-MI 2.6 format
+    mappings_file               Protein identfier mappings file from
+                                  iRefIndex. This file should be manually
+                                  downloaded and extracted.
+    download_dir                Directory to hold downloaded files
+    output_dir                  Directory to hold intermediate and final output
+                                 files
+
+OPTIONS:
+
+    -h, --help                 Print this message and exit
+    -f <filtered_pmids_file>   Exclude all pubmed IDs listed in the given file
+                                 (one pubmed ID per line)
+    -s <skipped_pmids_file>    Do not attempt to reduce to complexes the
+                                 interactions with pubmed IDs listed in this
+                                 file (one pubmed ID per line)
+    -m <max_complex_size>      Do not generate complexes with more proteins
+                                 than max_complex_size (leave original binary
+                                 interactions) - default: 120
+    -i <min_complex_size>      Do not generate complexes with fewer proteins
+                                 than min_complex_size (leave original binary
+                                 interactions) - default: 3
+    -t <taxonomy_ids>          A comma-separated list of NCBI Taxonomy IDs to
+                                 explicitly accept. Interactions involving
+                                 interactants from any other species will be
+                                 removed.
+
+OUTPUT:
+
+    Multiple intermediate files plus final results.
+""" % (__file__, __file__)
+
+_EMSG = "Insufficient arguments. Use '%s -h' to print help.\n" % __file__
+
+biogrid_tab2_url = 'http://thebiogrid.org/downloads/archives/' \
+                   'Latest%20Release/BIOGRID-ALL-LATEST.tab2.zip'
+obo_file_url = 'http://psidev.cvs.sourceforge.net/viewvc/*checkout*/psidev/psi/mi/rel25/data/psi-mi25.obo'
+
+class _TempFiles(object):
+
+    def __init__(self, output_dir, irefindex_file, download_dir):
+
+        self.basename = os.path.join(output_dir,
+                                     os.path.basename(irefindex_file))
+
+        self.biogrid_tab2_file = download_and_extract_biogrid(biogrid_tab2_url,
+                                                              download_dir)
+        self.biogrid_codes_file = self.basename + ".codes.tmp"
+        self.obo_file = os.path.join(download_dir, 'psi-mi.obo')
+
+        self.mapping_logfile = self.basename + '.uniprot_mappings.tab'
+        self.id_logfile = self.basename + '.ids.tab'
+        self.geneid_logfile = self.basename + '.geneids.tab'
+
+        self.filtering_logfile = self.basename + ".phase1.log"
+        self.biochem_file = self.basename + '.biochem.txt'
+        self.binary_file = self.basename + '.binary.txt'
+        self.complexes_file = self.basename + '.complex.txt'
+
+        self.complexes2_file = self.basename + '.complex2.txt'
+        self.complexes_logfile = self.basename + '.phase2.log'
+
+        self.final_log_file = self.basename + '.phase3.log'
+        self.final_output_file = self.basename + '.ppiTrim.txt'
+
+        self._redo = False
+
+
+    def _check_files(self, out_files):
+        if not self._redo:
+            res = sum(1 for f in out_files if not os.path.exists(f))
+            self._redo = res > 0
+        return self._redo
+
+    def do_ptm_codes(self):
+
+        out_files = (self.biogrid_codes_file, )
+        return self._check_files(out_files)
+
+    def do_get_obo(self):
+
+        out_files = (self.obo_file, )
+        return self._check_files(out_files)
+
+    def do_mapping(self):
+
+        out_files = (self.mapping_logfile,
+                     self.id_logfile)
+        return self._check_files(out_files)
+
+    def do_phase1(self):
+
+        out_files = (self.filtering_logfile,
+                     self.biochem_file,
+                     self.binary_file,
+                     self.complexes_file)
+        return self._check_files(out_files)
+
+    def do_phase2(self):
+
+        out_files = (self.complexes2_file,
+                     self.complexes_logfile)
+        return self._check_files(out_files)
+
+    def do_phase3(self):
+
+        out_files = (self.final_log_file,
+                     self.final_output_file)
+        return self._check_files(out_files)
+
+
+def main(irefindex_file, download_dir, output_dir, filtered_pmids_file=None,
+         skipped_pmids_file=None, max_complex_size=120, min_complex_size=4,
+         mappings_file=None, accepted_taxids=None):
+
+    print "*** ppiTrim: processing %s." % irefindex_file
+    tmp = _TempFiles(output_dir, irefindex_file, download_dir)
+
+    if tmp.do_ptm_codes():
+        print "Retrieving BioGRID PTM codes."
+        biogrid_ptm_codes(tmp.biogrid_tab2_file, tmp.biogrid_codes_file)
+
+    if tmp.do_get_obo():
+        print "Retrieving PSI-MI ontology."
+        download_file(obo_file_url, tmp.obo_file)
+
+    if tmp.do_mapping():
+        print "Mapping iRefIndex protein IDs to Gene IDs."
+        map_protein_ids_to_gene_ids(irefindex_file, filtered_pmids_file,
+                                    download_dir, tmp.mapping_logfile,
+                                    tmp.id_logfile, tmp.geneid_logfile,
+                                    mappings_file, accepted_taxids)
+
+    if tmp.do_phase1():
+        print "Phase 1: Filtering and splitting dataset."
+        process_ppi1(irefindex_file, tmp.id_logfile,
+                     tmp.filtering_logfile, tmp.biochem_file,
+                     tmp.binary_file, tmp.complexes_file, tmp.obo_file,
+                     tmp.biogrid_codes_file, filtered_pmids_file,
+                     accepted_taxids)
+
+    if tmp.do_phase2():
+        print "Phase 2: Consolidating binary interactions into complexes."
+        process_ppi2(tmp.complexes_file, tmp.complexes2_file,
+                     tmp.complexes_logfile, skipped_pmids_file,
+                     max_complex_size, min_complex_size)
+
+    if tmp.do_phase3():
+        print "Phase 3: Consolidating all redundant interactions"
+        process_ppi3(tmp.biochem_file, tmp.complexes2_file, tmp.binary_file,
+                     tmp.obo_file, tmp.final_output_file, tmp.final_log_file)
+
+
+if __name__ == "__main__":
+
+    filtered_pmids_file = None
+    skipped_pmids_file = None
+    max_complex_size = 120
+    min_complex_size = 3
+    accepted_taxids = None
+    opts, args = getopt.getopt(sys.argv[1:], 'hf:s:m:i:t:d', ['help'])
+    for o, a in opts:
+        if o in ("-h", "--help"):
+            sys.stdout.write(_HELP)
+            sys.exit()
+        elif o in ("-f", ):
+            filtered_pmids_file = a
+        elif o in ("-s", ):
+            skipped_pmids_file = a
+        elif o in ("-m", ):
+            max_complex_size = int(a)
+        elif o in ("-i", ):
+            min_complex_size = int(a)
+        elif o in ("-t", ):
+            accepted_taxids = set(map(int, a.split(',')))
+
+    if len(args) < 4:
+        sys.stderr.write(_EMSG)
+        sys.exit()
+
+    irefindex_file, mappings_file, download_dir, output_dir = args[:4]
+    main(irefindex_file, download_dir, output_dir, filtered_pmids_file,
+         skipped_pmids_file, max_complex_size, min_complex_size, mappings_file,
+         accepted_taxids)
